@@ -50,12 +50,12 @@ touch "$LOG" 2>/dev/null || LOG=/var/log/init.log
 E_STG='🔷'     # 阶段开始
 E_OK='✅'      # 成功 / 关键提示
 E_URL='🌐'     # 访问地址
-E_PATH='🔒'    # 面板防扫路径
-E_USER='👤'    # 账号
+E_PATH='📁'    # 面板路径
+E_USER='💠'    # 账号
 E_KEY='🔑'     # 密码
-E_PORT='🔌'    # 端口
-E_SSH='📡'     # SSH 登录方式
-E_WRITE='📝'   # 配置回写
+E_PORT='🎯'    # 端口
+E_SSH='⚡'     # SSH 登录方式
+E_WRITE='📌'   # 配置回写
 
 now()  { date '+%F %T'; }
 cost() { echo $(( $(date +%s) - $1 )); }
@@ -652,7 +652,7 @@ ensure_xui() {
     _xui_mixed_ensure
 
     if _xui_start; then
-        log "     · 面板地址：${E_URL} http://${GW_ADDR}:${XUI_PORT} ${E_PATH} ${XUI_WEB_PATH}"
+        log "     · ${E_URL} 面板地址：http://${GW_ADDR}:${XUI_PORT}${XUI_WEB_PATH:-/}"
         log "     · 面板账号：${E_USER} ${XUI_USER}"
         if [ "${XUI_PASS_RANDOM:-0}" = "1" ]; then
             log "     ${E_OK} 面板密码（首启随机，仅本次显示） ${E_KEY} ${XUI_PASS}"
@@ -854,7 +854,7 @@ ensure_xui
 # ---------- 收尾 ----------
 GW="${ROUTER_GW}"
 [ -z "$GW" ] && GW=$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')
-[ -x "$XUI_BIN" ] && log "════════ 3x-ui 面板 ${E_URL} http://${GW_ADDR:-<网关>}:${XUI_PORT} ${E_PATH} ${XUI_WEB_PATH}"
+[ -x "$XUI_BIN" ] && log "════════ 3x-ui 面板 ${E_URL} http://${GW_ADDR:-<网关>}:${XUI_PORT}${XUI_WEB_PATH:-/}"
 log "════════ ${E_OK} 全部就绪 ｜ 总 $(cost "$T0_ALL")s ｜ ${E_SSH} SSH root@${GW:-<网关>}（默认 22 端口）"
 log "════════ 日志：/home/init.log（上一轮 init.log.prev）"
 
