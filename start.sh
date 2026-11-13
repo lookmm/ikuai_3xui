@@ -43,41 +43,36 @@ STEP_TOTAL=1
 mkdir -p /home 2>/dev/null
 touch "$LOG" 2>/dev/null || LOG=/var/log/init.log
 
-# ── 日志配色：on = 彩色（终端/面板可渲染时）；off = 纯文本 ──
-LOG_COLOR='on'
-
-# ---------- 颜色与日志 ----------
-# 说明：ANSI 仅作用于 stdout；写入 $LOG 时会剥离，保证日志文件可直接 grep/cat
-if [ "$LOG_COLOR" = 'on' ]; then
-    C_ON=1
-    C_RST=$'\033[0m'
-    C_BAR=$'\033[1;34m'    # ════ 横幅
-    C_STG=$'\033[1;35m'    # ▶ 阶段
-    C_OK=$'\033[1;32m'     # ✔ 成功 / ★ 关键提示
-    C_ERR=$'\033[1;31m'    # !!! 错误
-    C_URL=$'\033[1;36m'    # 连接地址
-    C_PATH=$'\033[1;32m'   # 面板防扫路径
-    C_KEY=$'\033[1;33m'    # 账号 / 密码 / 端口等实值
-else
-    C_ON=''; C_RST=''; C_BAR=''; C_STG=''; C_OK=''; C_ERR=''; C_URL=''; C_PATH=''; C_KEY=''
-fi
+# ---------- 日志符号 ----------
+# 爱快 Docker 日志页不渲染 ANSI 转义码（ESC 会被过滤，只剩 [1;36m 这种残渣），
+# 故本脚本完全不用 ANSI，改用 Emoji：由浏览器字体直接渲染出颜色，页面与 SSH 终端都能看。
+# 若你的终端/字体不支持 Emoji，只会显示成方块，不影响日志可读性。
+E_STG='🔷'     # 阶段开始
+E_OK='✅'      # 成功 / 关键提示
+E_URL='🌐'     # 访问地址
+E_PATH='🔒'    # 面板防扫路径
+E_USER='👤'    # 账号
+E_KEY='🔑'     # 密码
+E_PORT='🔌'    # 端口
+E_SSH='📡'     # SSH 登录方式
+E_WRITE='📝'   # 配置回写
 
 now()  { date '+%F %T'; }
 cost() { echo $(( $(date +%s) - $1 )); }
 log() {
-    local ts msg clean
+    local ts msg trim
     ts=$(now); msg="$*"
-    # !!! 行整体标红（提交于 strip 之前，文件里不含色码）
+    # 错误行统一加 ❌ 前缀：爱快 Docker 日志页不渲染 ANSI，改用 emoji 区分；屏幕与文件内容一致
     case "$msg" in
-        *'!!!'*) [ -n "$C_ON" ] && msg="${C_ERR}${msg}${C_RST}" ;;
+        *'!!!'*)
+            case "$msg" in
+                *'❌'*) : ;;
+                *) trim=${msg#"${msg%%[![:space:]]*}"}; msg="❌ $trim" ;;
+            esac
+            ;;
     esac
     printf '[%s] %s\n' "$ts" "$msg"
-    if [ -n "$C_ON" ]; then
-        clean=$(printf '%s' "$msg" | sed $'s/\033\\[[0-9;]*m//g')
-        printf '[%s] %s\n' "$ts" "$clean" >>"$LOG"
-    else
-        printf '[%s] %s\n' "$ts" "$msg" >>"$LOG"
-    fi
+    printf '[%s] %s\n' "$ts" "$msg" >>"$LOG"
 }
 
 # 上一轮日志归档，本次从干净文件开始
@@ -88,11 +83,11 @@ fi
 stage() {
     STEP_CUR=$((STEP_CUR + 1))
     ST_T0=$(date +%s)
-    log "${C_STG}▶ [${STEP_CUR}/${STEP_TOTAL}] $*${C_RST}"
+    log "${E_STG} [${STEP_CUR}/${STEP_TOTAL}] $*"
 }
 # 修复：不再依赖 RL_DONE，阶段总结总是打印（run_long 的逐条 ✔/✖ 仍保留）
 stage_ok() {
-    log "     ${C_OK}✔ $*（$(cost "$ST_T0")s）${C_RST}"
+    log "     ${E_OK} $*（$(cost "$ST_T0")s）"
 }
 
 # ---------- 清理卡死的 apt/dpkg 残留与锁 ----------
@@ -250,7 +245,7 @@ _xui_fill_vars() {
     if [ -z "$XUI_WEB_PATH" ]; then
         if [ -n "$dbp" ] && [ "$dbp" != "/" ]; then
             XUI_WEB_PATH="$dbp"; _head_set XUI_WEB_PATH "$XUI_WEB_PATH"
-            log "     · 面板路径变量为空，已从库回填：${C_PATH}$XUI_WEB_PATH${C_RST}"
+            log "     · 面板路径变量为空，已从库回填：${E_PATH} $XUI_WEB_PATH"
         else
             p=$(_rand 12 'a-z0-9'); [ -n "$p" ] || p="p$(date +%s)"
             XUI_WEB_PATH="/${p}/"; _head_set XUI_WEB_PATH "$XUI_WEB_PATH"; new=1
@@ -259,7 +254,7 @@ _xui_fill_vars() {
     if [ -z "$XUI_USER" ]; then
         if [ -n "$dbu" ]; then
             XUI_USER="$dbu"; _head_set XUI_USER "$XUI_USER"
-            log "     · 面板账号变量为空，已从库回填：${C_KEY}$XUI_USER${C_RST}"
+            log "     · 面板账号变量为空，已从库回填：${E_USER} $XUI_USER"
         else
             u=$(_rand 8 'a-z0-9'); [ -n "$u" ] || u="u$(date +%s)"
             XUI_USER="$u"; _head_set XUI_USER "$XUI_USER"; new=1
@@ -589,8 +584,8 @@ _xui_mixed_ensure() {
     if [ -n "$chk" ]; then
         log "     · 已补建混合入站：端口 ${port}（id=${chk}，tag=${tag}，账号 ${nu}）"
         if [ "$gen" = "1" ]; then
-            log "     ${C_OK}★ 混合入站凭据为随机生成，仅本次显示密码${C_RST}：${C_KEY}${np}${C_RST}"
-            log "     ★ 以上凭据已回写脚本头部：$SELF"
+            log "     ${E_OK} 混合入站凭据为随机生成，仅本次显示密码 ${E_KEY} ${np}"
+            log "     ${E_WRITE} 以上凭据已回写脚本头部：$SELF"
         fi
     else
         log "     !!! 混合入站补建失败（端口 ${port}）"
@@ -657,10 +652,10 @@ ensure_xui() {
     _xui_mixed_ensure
 
     if _xui_start; then
-        log "     · 面板地址：${C_URL}http://${GW_ADDR}:${XUI_PORT}${C_RST}${C_PATH}${XUI_WEB_PATH}${C_RST}"
-        log "     · 面板账号：${C_KEY}${XUI_USER}${C_RST}"
+        log "     · 面板地址：${E_URL} http://${GW_ADDR}:${XUI_PORT} ${E_PATH} ${XUI_WEB_PATH}"
+        log "     · 面板账号：${E_USER} ${XUI_USER}"
         if [ "${XUI_PASS_RANDOM:-0}" = "1" ]; then
-            log "     ${C_OK}★ 面板密码（首启随机，仅本次显示）${C_RST}：${C_KEY}${XUI_PASS}${C_RST}"
+            log "     ${E_OK} 面板密码（首启随机，仅本次显示） ${E_KEY} ${XUI_PASS}"
         elif [ -n "$XUI_PASS" ]; then
             log "     · 面板密码已同步（头部已配置，不显示明文）"
         else
@@ -669,12 +664,12 @@ ensure_xui() {
         if [ -n "${_HEAD_FAIL:-}" ]; then
             log "     !!! 头部回写失败（本次仅内存生效，重启会变）：${_HEAD_FAIL# }"
         elif [ "$vars_new" = "1" ]; then
-            log "     ★ 已回写脚本头部：${_HEAD_OK# }（$SELF）"
+            log "     ${E_WRITE} 已回写脚本头部：${_HEAD_OK# }（$SELF）"
         fi
         if [ "$XUI_PORT" = "9090" ] && [ "$XUI_SUB_PORT" = "2096" ] && [ "$XUI_MIXED_PORT" = "7890" ]; then
             log "     · 端口仍为默认值 9090/2096/7890，如需更换请修改本脚本头部对应行后重启"
         fi
-        log "     · 订阅端口 ${C_KEY}${XUI_SUB_PORT}${C_RST}　混合入站 ${C_KEY}${XUI_MIXED_PORT}${C_RST}（账号 ${C_KEY}${XUI_MIXED_USER:-未配置}${C_RST}　密码 ${C_KEY}${XUI_MIXED_PASS:-未配置}${C_RST}）"
+        log "     ${E_PORT} 订阅端口 ${XUI_SUB_PORT}　混合入站 ${XUI_MIXED_PORT}（${E_USER} ${XUI_MIXED_USER:-未配置}　${E_KEY} ${XUI_MIXED_PASS:-未配置}）"
         log "     · 配置持久层：/etc/x-ui → ${XUI_DB}（库 $(_xui_db_size)，WAL $(_xui_db_wal_size)）"
     else
         log "     !!! 3x-ui 启动失败，见 /home/xui.log"
@@ -722,8 +717,8 @@ else
     STEP_TOTAL=2
 fi
 
-log "${C_BAR}════════ Ubuntu 容器 ｜ 环境+SSH ｜ 模式：${MODE}${C_RST}"
-log "${C_BAR}════════ 启动于 $(now) ════════${C_RST}"
+log "════════ Ubuntu 容器 ｜ 环境+SSH ｜ 模式：${MODE}"
+log "════════ 启动于 $(now) ════════"
 
 # ---------- 1. apt 索引与 CA ----------
 if [ "$NEED_APT" = "1" ]; then
@@ -803,7 +798,7 @@ if [ -z "$ROOT_PASS" ]; then
     [ -n "$ROOT_PASS" ] || ROOT_PASS="Xy$(date +%s)Zq9"
     PASS_NEW=1
     if _head_set ROOT_PASS "$ROOT_PASS"; then
-        log "     ★ 首启随机密码已回写脚本头部：$SELF"
+        log "     ${E_WRITE} 首启随机密码已回写脚本头部：$SELF"
     else
         log "     !!! 密码回写失败，本次仅内存生效（重启会重新随机）"
     fi
@@ -815,7 +810,7 @@ if printf '%s' "$ROOT_PASS" | grep -q '[:[:cntrl:]]'; then
     log "     !!! ROOT_PASS 含冒号或控制字符，chpasswd 无法处理，请改为字母数字后重启"
 elif echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null; then
     if [ "$PASS_NEW" = "1" ]; then
-        log "     ${C_OK}★ root 密码（首启随机，仅本次显示）${C_RST}：${C_KEY}${ROOT_PASS}${C_RST}"
+        log "     ${E_OK} root 密码（首启随机，仅本次显示） ${E_KEY} ${ROOT_PASS}"
     else
         log "     · root 密码已同步（头部已配置，不显示明文）"
     fi
@@ -859,8 +854,8 @@ ensure_xui
 # ---------- 收尾 ----------
 GW="${ROUTER_GW}"
 [ -z "$GW" ] && GW=$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')
-[ -x "$XUI_BIN" ] && log "${C_BAR}════════ 3x-ui 面板${C_RST} ${C_URL}http://${GW_ADDR:-<网关>}:${XUI_PORT}${C_RST}${C_PATH}${XUI_WEB_PATH}${C_RST}"
-log "${C_BAR}════════${C_RST} ${C_OK}✔ 全部就绪${C_RST} ｜ 总 $(cost "$T0_ALL")s ｜ SSH root@${C_KEY}${GW:-<网关>}${C_RST}（默认 22 端口）"
+[ -x "$XUI_BIN" ] && log "════════ 3x-ui 面板 ${E_URL} http://${GW_ADDR:-<网关>}:${XUI_PORT} ${E_PATH} ${XUI_WEB_PATH}"
+log "════════ ${E_OK} 全部就绪 ｜ 总 $(cost "$T0_ALL")s ｜ ${E_SSH} SSH root@${GW:-<网关>}（默认 22 端口）"
 log "════════ 日志：/home/init.log（上一轮 init.log.prev）"
 
 trap 'log "收到退出信号，容器结束"; exit 0' TERM INT
