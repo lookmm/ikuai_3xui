@@ -657,7 +657,7 @@ ensure_xui() {
         if [ "${XUI_PASS_RANDOM:-0}" = "1" ]; then
             log "     ${E_OK} 面板密码（首启随机，仅本次显示） ${E_KEY} ${XUI_PASS}"
         elif [ -n "$XUI_PASS" ]; then
-            log "     · 面板密码已同步（头部已配置，不显示明文）"
+            log "     · 面板密码已同步（请到start.sh内查看）"
         else
             log "     · 面板密码变量留空，沿用库中现值（bcrypt 哈希，不回显；如需重置请在头部填值）"
         fi
@@ -812,7 +812,7 @@ elif echo "root:${ROOT_PASS}" | chpasswd 2>/dev/null; then
     if [ "$PASS_NEW" = "1" ]; then
         log "     ${E_OK} root 密码（首启随机，仅本次显示） ${E_KEY} ${ROOT_PASS}"
     else
-        log "     · root 密码已同步（头部已配置，不显示明文）"
+        log "     · root 密码已同步（请到start.sh内查看）"
     fi
 else
     log "     !!! root 密码同步失败，请检查 ROOT_PASS 是否含特殊字符（冒号/换行）"
